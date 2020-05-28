@@ -16,4 +16,9 @@ router.get('/json', async (ctx, next) => {
   }
 })
 
+router.post('/goods/:id', async (ctx, next) => {
+  console.log(ctx)
+  ctx.body = 'goods'
+})
+
 module.exports = router

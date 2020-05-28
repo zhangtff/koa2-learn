@@ -6,11 +6,22 @@ const onerror = require('koa-onerror')
 const bodyparser = require('koa-bodyparser')
 const logger = require('koa-logger')
 
+const session = require('koa-generic-session')
+
+const pv = require('./middleware/koa-pv')
+
 const index = require('./routes/index')
 const users = require('./routes/users')
 
 // error handler
 onerror(app)
+
+// session配置
+app.keys = ['koa']
+const CONFIG = {
+  key: 'koa'
+}
+app.use(session(CONFIG, app))
 
 // middlewares
 app.use(bodyparser({
@@ -20,22 +31,27 @@ app.use(json())
 app.use(logger())
 app.use(require('koa-static')(__dirname + '/public'))
 
-// 中间件练习
-app.use((ctx, next) => {
-  console.log(1)
-  next()
-  console.log(2)
-})
-app.use((ctx, next) => {
-  console.log(3)
-  next()
-  console.log(4)
-})
+app.use(pv())
 
 app.use(views(__dirname + '/views', {
   extension: 'ejs'
 }))
 
+// app.use(async (ctx, next) => {
+//   console.log(1)
+//   await next()
+//   console.log(2)
+// })
+
+// app.use((ctx, next) => {
+//   return new Promise((resolve, reject) => {
+//     setTimeout(() => {
+//       console.log(3)
+//       resolve()
+//     }, 2000)
+//     next()
+//   })
+// })
 // logger
 app.use(async (ctx, next) => {
   const start = new Date()
