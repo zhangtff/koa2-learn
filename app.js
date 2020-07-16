@@ -8,6 +8,8 @@ const logger = require('koa-logger')
 
 const session = require('koa-generic-session')
 
+const mongoose = require('mongoose')
+
 const pv = require('./middleware/koa-pv')
 
 const index = require('./routes/index')
@@ -31,28 +33,12 @@ app.use(json())
 app.use(logger())
 app.use(require('koa-static')(__dirname + '/public'))
 
-app.use(pv())
+// app.use(pv())
 
 app.use(views(__dirname + '/views', {
   extension: 'ejs'
 }))
 
-// app.use(async (ctx, next) => {
-//   console.log(1)
-//   await next()
-//   console.log(2)
-// })
-
-// app.use((ctx, next) => {
-//   return new Promise((resolve, reject) => {
-//     setTimeout(() => {
-//       console.log(3)
-//       resolve()
-//     }, 2000)
-//     next()
-//   })
-// })
-// logger
 app.use(async (ctx, next) => {
   const start = new Date()
   await next()
@@ -63,6 +49,11 @@ app.use(async (ctx, next) => {
 // routes
 app.use(index.routes(), index.allowedMethods())
 app.use(users.routes(), users.allowedMethods())
+
+// 连接数据库
+mongoose.connect('mongodb://localhost:27017/Student', {
+  useNewUrlParser: true
+})
 
 // error-handling
 app.on('error', (err, ctx) => {
