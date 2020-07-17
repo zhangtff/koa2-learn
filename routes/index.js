@@ -22,9 +22,10 @@ router.post('/goods/:id', async (ctx, next) => {
   ctx.body = 'goods'
 })
 
+// 增加学生
 router.post('/addStudent', async (ctx, next) => {
   const reqBody = ctx.request.body
-  console.log(reqBody)
+  console.log('>>>>>>>reqBody', reqBody)
   const student = new Student({
     name: reqBody.name,
     age: reqBody.age,
@@ -39,6 +40,15 @@ router.post('/addStudent', async (ctx, next) => {
     code = 'fail'
   }
   ctx.body = code
+})
+
+// 删除学生
+router.post('/removeStudent', async(ctx, next) => {
+  const reqBody = ctx.request.body
+  await Student.where({
+    name: reqBody.name
+  }).remove()
+
 })
 
 module.exports = router
