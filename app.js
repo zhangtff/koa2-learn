@@ -5,12 +5,9 @@ const json = require('koa-json')
 const onerror = require('koa-onerror')
 const bodyparser = require('koa-bodyparser')
 const logger = require('koa-logger')
-
 const session = require('koa-generic-session')
-
-const mongoose = require('mongoose')
-
 const pv = require('./middleware/koa-pv')
+
 
 const index = require('./routes/index')
 const users = require('./routes/users')
@@ -51,9 +48,9 @@ app.use(index.routes(), index.allowedMethods())
 app.use(users.routes(), users.allowedMethods())
 
 // 连接数据库
-mongoose.connect('mongodb://localhost:27017/Student', {
-  useNewUrlParser: true
-})
+// mongoose.connect('mongodb://localhost:27017/Student', {
+//   useNewUrlParser: true
+// })
 
 // error-handling
 app.on('error', (err, ctx) => {
