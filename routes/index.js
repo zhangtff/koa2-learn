@@ -81,13 +81,26 @@ router.get('/getALLArticle', async(ctx, next) => {
 })
 
 // 文章检索
-router.post('/addArticle', async(ctx, next) => {
+router.post('/searchArticle', async(ctx, next) => {
   const reqBody = ctx.request.body
   let code
 
   try {
-    await articleDao.save(reqBody)
-    code = 'success'
+    const result = await articleDao.findAll({
+        $or: [
+          {
+            title: {
+              $regex: reqBody.title
+            }
+          },
+          {
+            content: {
+              $regex: reqBody.title
+            }
+          }
+        ]
+      })
+    code = result
   } catch (err) {
     code = 'fail'
   }
