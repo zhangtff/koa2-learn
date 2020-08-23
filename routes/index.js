@@ -84,7 +84,7 @@ router.get('/getALLArticle', async(ctx, next) => {
 router.post('/searchArticle', async(ctx, next) => {
   const reqBody = ctx.request.body
   let code
-
+  console.log(reqBody)
   try {
     const result = await articleDao.findAll({
         $or: [

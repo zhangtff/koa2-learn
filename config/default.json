@@ -1,0 +1,15 @@
+{
+    "mongodb": {
+      "user": "zhangtff",
+      "pass": "Zhang315938294",
+      "host": "39.105.46.103",
+      "port": "27017",
+      "replicaSet": {
+        "name": "",
+        "members": [
+
+        ]
+      },
+      "db": "xiaofang"
+    }
+  }
