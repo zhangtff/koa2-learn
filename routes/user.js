@@ -17,6 +17,11 @@ router.post('/login', async (ctx, next) => {
     } else {
         if (res === null) {
             result.code = 3001
+            result.message = '账号或密码不正确'
+        } else {
+            result.data = {
+                token: new Date().getTime()
+            }
         }
     }
 
