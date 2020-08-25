@@ -34,17 +34,27 @@ router.post('/add', async (ctx, next) => {
 
 // 获取举报列表
 router.post('/getList', async (ctx, next) => {
-    let result = { code: 1000 }
+    let result = { 
+        code: 1000,
+        data: {
+            total: 0,
+            items: []
+        }
+    }
     // 排序方式用1 和 -1 表示
     const {pageNum, pageSize, sort} = ctx.request.body
 
-    let [err, res] = await to(reportDao.getList({}, null, pageNum, pageSize, sort))
+    const [err, res] = await to(reportDao.getCount())
 
-    if (err) {
-        console.log(err)
+    if (!err) result.data.total = res 
+
+    const [err1, res1] = await to(reportDao.getList({}, null, pageNum, pageSize, sort))
+
+    if (err1) {
+        console.log(err1)
         result.code = 1001
     } else {
-        result.data = res
+        result.data.items = res1
     }
 
     ctx.body = result

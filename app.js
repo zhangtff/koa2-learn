@@ -15,7 +15,7 @@ const index = require('./routes/index')
 const users = require('./routes/users')
 const lowRouter = require('./routes/law')
 const reportRouter = require('./routes/report')
-const userRouter = require('./routes/user')
+const adminRouter = require('./routes/admin')
 
 // error handler
 onerror(app)
@@ -59,7 +59,7 @@ app.use(index.routes(), index.allowedMethods())
 app.use(users.routes(), users.allowedMethods())
 app.use(lowRouter.routes(), lowRouter.allowedMethods())
 app.use(reportRouter.routes(), reportRouter.allowedMethods())
-app.use(userRouter.routes(), userRouter.allowedMethods())
+app.use(adminRouter.routes(), adminRouter.allowedMethods())
 
 // 连接数据库
 // mongoose.connect('mongodb://localhost:27017/Student', {
