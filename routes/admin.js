@@ -14,6 +14,7 @@ router.post('/login', async (ctx, next) => {
 
     if (err) {
         result.code = 1001
+        result.message = '数据库错误'
     } else {
         if (res === null) {
             result.code = 3001

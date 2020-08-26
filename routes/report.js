@@ -17,14 +17,17 @@ router.post('/add', async (ctx, next) => {
 
     if (err) {
         result.code = 1001
+        result.message = '数据库错误'
     } else {
         if (res !== null) {
             result.code = 2001
+            result.message = '举报记录已存在'
         } else {
             [err, res] = await to(reportDao.save({name, company, position, content, reportName, contact}))
 
             if (err) {
                 result.code = 1001
+                result.message = '数据库错误'
             }
         }
     }
@@ -53,6 +56,7 @@ router.post('/getList', async (ctx, next) => {
     if (err1) {
         console.log(err1)
         result.code = 1001
+        result.message = '数据库错误'
     } else {
         result.data.items = res1
     }
@@ -70,6 +74,7 @@ router.post('/delete', async (ctx, next) => {
     if (err) {
         console.log(err)
         result.code = 1001
+        result.message = '数据库错误'
     }
 
     ctx.body = result
