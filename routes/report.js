@@ -1,5 +1,4 @@
 const router = require('koa-router')()
-let mongoose = require('mongoose')
 const { to } = require('await-to-js')
 const ReportDao = require('../moudle/reportDao')
 let reportDao = new ReportDao()
@@ -69,7 +68,7 @@ router.post('/delete', async (ctx, next) => {
     let result = { code: 1000 }
     const { ids } = ctx.request.body
 
-    let [err, res] = await to(reportDao.remove({_id: { $in: ids }}))
+    let [err, res] = await to(reportDao.deleteMany({_id: { $in: ids }}))
 
     if (err) {
         console.log(err)

@@ -49,7 +49,7 @@ router.post('/removeStudent', async(ctx, next) => {
   const reqBody = ctx.request.body
   await Student.where({
     name: reqBody.name
-  }).remove()
+  }).deleteMany()
 
 })
 

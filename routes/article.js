@@ -17,7 +17,7 @@ router.post('/add', async (ctx, next) => {
         message: '',
         data: {}
     }
-    console.log(ctx.request.body)
+
     let { title, column, type, thumb, content, link} = ctx.request.body
 
     // 判断文章标题是否已经存在
@@ -29,40 +29,40 @@ router.post('/add', async (ctx, next) => {
     } else {
         if (res0 === null) {
             // 微信公众号外链文章处理逻辑
-        if (type === 2) {
-            let [err, res] = await to(httpGetPromise(link))
+            if (type === 2) {
+                let [err, res] = await to(httpGetPromise(link))
 
-            if (err) {
-                result.code = 4001
-                result.message = '获取文章缩略图失败'
-            } else {
-                const htmlStr = res
-                const matchArr = htmlStr.match(/msg_cdn_url = "(.*?)"/)
-        
-                if (matchArr !== null) {
-                    let [err1, res1] = await to(httpGetPromise(matchArr[1],2, 2))
-        
-                    if (err1) {
-                        console.log(err1)
-                        result.message = '获取文章缩略图失败'
-                    } else {
-                        const dir = path.join(__dirname + '/../static/upload/thumb/')
-                        const imgName = new Date().getTime() + '.jpg'
-                        thumb = '/upload/thumb/' + imgName
-        
-                        fs.writeFileSync(dir + imgName, res1, "binary")
+                if (err) {
+                    result.code = 4001
+                    result.message = '获取文章缩略图失败'
+                } else {
+                    const htmlStr = res
+                    const matchArr = htmlStr.match(/msg_cdn_url = "(.*?)"/)
+            
+                    if (matchArr !== null) {
+                        let [err1, res1] = await to(httpGetPromise(matchArr[1],2, 2))
+            
+                        if (err1) {
+                            console.log(err1)
+                            result.message = '获取文章缩略图失败'
+                        } else {
+                            const dir = path.join(__dirname + '/../static/upload/thumb/')
+                            const imgName = new Date().getTime() + '.jpg'
+                            thumb = '/upload/thumb/' + imgName
+            
+                            fs.writeFileSync(dir + imgName, res1, "binary")
 
-                        let [err2, res2] = await to(articleDao.save({title, column, type, thumb, content, link}))
+                            let [err2, res2] = await to(articleDao.save({title, column, type, thumb, content, link}))
 
-                        if (err2) {
-                            result.code = 1001
-                            result.message = '数据库错误'
+                            if (err2) {
+                                result.code = 1001
+                                result.message = '数据库错误'
+                            }
                         }
                     }
+            
                 }
-        
             }
-        }
         } else {
             result.code = 4002
             result.message = '已存在相同标题文章'
@@ -81,7 +81,6 @@ router.post('/getList', async (ctx, next) => {
             items: []
         }
     }
-
     // 排序方式用1 和 -1 表示
     const {pageNum, pageSize, sort, column, type} = ctx.request.body
     const query = {}
@@ -89,7 +88,7 @@ router.post('/getList', async (ctx, next) => {
     if (column) query.column = column
     if (type) query.type = type
 
-    const [err, res] = await to(articleDao.getCount())
+    const [err, res] = await to(articleDao.getCount(query))
     if (!err) result.data.total = res 
 
     const [err1, res1] = await to(articleDao.getList(query, null, pageNum, pageSize, sort))
@@ -137,7 +136,7 @@ router.post('/update', async (ctx, next) => {
     
                     fs.writeFileSync(dir + imgName, res1, "binary")
 
-                    let [err2, res2] = await to(articleDao.update({_id} ,{title, column, type, thumb, content, link}))
+                    let [err2, res2] = await to(articleDao.updateOne({_id} ,{title, column, type, thumb, content, link}))
 
                     if (err2) {
                         result.code = 1001
@@ -160,7 +159,7 @@ router.post('/delete', async (ctx, next) => {
     }
     const { ids } = ctx.request.body
 
-    let [err, res] = await to(articleDao.remove({_id: { $in: ids }}))
+    let [err, res] = await to(articleDao.deleteMany({_id: { $in: ids }}))
 
     if (err) {
         console.log(err)
