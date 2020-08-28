@@ -3,7 +3,7 @@ const { mongoClient } = require('../lib/mongo')
 const BaseDao = require('../lib/baseDao')
 
 const questionSchema = new Schema({
-    bankId: {
+    bankID: {
         type: String,
         required: true,
         trim:true //去除数据前后的空格
@@ -39,10 +39,10 @@ class QuestionDao extends BaseDao {
      * @param obj 构造实体的对象
      * @returns {Promise}
      */
-    createExam(bankId, type, limitSum) {
+    createExam(bankID, type, limitSum) {
         return new Promise((resolve, reject) => {
             this.Model.aggregate([{ $match: {
-                    bankId, 
+                    bankID, 
                     type
                 }}])
                 .sample(limitSum) // 随机取指定数量记录

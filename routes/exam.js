@@ -7,6 +7,8 @@ const QuestionBankDao = require('../moudle/questionBankDao')
 const questionBankDao = new QuestionBankDao()
 const QuestionDao = require('../moudle/questionDao')
 const questionDao = new QuestionDao()
+const ExamDao = require('../moudle/examDao')
+const examDao = new ExamDao()
 
 router.prefix('/api/exam')
 
@@ -125,9 +127,9 @@ router.post('/getEditUser', async (ctx, next) => {
         message: ''
     }
 
-    let { _id, department, name } = ctx.request.body
+    let { _id, department, name, openID } = ctx.request.body
 
-    const [err, res] = await to(userDao.updateOne({_id} ,{ department, name }))
+    const [err, res] = await to(userDao.updateOne({_id} ,{ department, name, openID: openID ? openID : '' }))
 
     if (err) {
         result.code = 1001
@@ -156,7 +158,7 @@ router.post('/deleteUser', async (ctx, next) => {
     ctx.body = result
 })
 
-// 增加考试题库分类
+// 增加考试题库分类,新增题库默认为关闭状态，需要导入符合设置的各类型题目后才能开启
 router.post('/addQuestionBank', async (ctx, next) => {
     let result = { 
         code: 1000,
@@ -229,11 +231,82 @@ router.post('/editQuestionBankStatus', async (ctx, next) => {
     }
 
     const { _id, status } = ctx.request.body
-    const [err, res] = await to(questionBankDao.updateOne({ _id } ,{ status }))
 
-    if (err) {
-        result.code = 1001
-        result.message = '数据库错误'
+    if (status) {
+        // 判断题目数量是否符合设定
+        const [err, res] = await to(questionBankDao.findOne({ _id }))
+
+        if (err) {
+            console.log(err)
+            result.code = 1001
+            result.message = '数据库错误'
+        } else {
+            if (res !== null) {
+                const { singleNum, multipleNum, judgeNum } = res
+                let singleCount, multipleCount, judgeCount
+                const [err1, res1] = await to(questionDao.getCount({
+                    bankID: _id,
+                    type: 1
+                }))
+
+                if (err1) {
+                    console.log(err1)
+                    result.code = 1001
+                    result.message = '数据库错误'
+                } else {
+                    singleCount = res1
+
+                    const [err2, res2] = await to(questionDao.getCount({
+                        bankID: _id,
+                        type: 2
+                    }))
+    
+                    if (err2) {
+                        console.log(err2)
+                        result.code = 1001
+                        result.message = '数据库错误'
+                    } else {
+                        multipleCount = res2
+
+                        const [err3, res3] = await to(questionDao.getCount({
+                            bankID: _id,
+                            type: 3
+                        }))
+        
+                        if (err3) {
+                            console.log(err3)
+                            result.code = 1001
+                            result.message = '数据库错误'
+                        } else {
+                            judgeCount = res3
+
+                            if (singleCount < singleNum || multipleCount < multipleNum || judgeCount < judgeNum) {
+                                result.code = 5006
+                                result.message = '请导入足够的试题后再开启本试题库'
+                            } else {
+                                const [err4, res4] = await to(questionBankDao.updateOne({ _id } ,{ status }))
+
+                                if (err4) {
+                                    result.code = 1001
+                                    result.message = '数据库错误'
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                result.code = 5005
+                result.message = '未找到考试对应的题库信息'
+            }
+        }    
+
+    } else {
+        const [err, res] = await to(questionBankDao.updateOne({ _id } ,{ status }))
+
+        if (err) {
+            result.code = 1001
+            result.message = '数据库错误'
+        }
     }
 
     ctx.body = result
@@ -285,7 +358,7 @@ router.post('/importQuestion', async (ctx, next) => {
 
     // 判断是否上传文件
     if (ctx.request.files) { 
-        const { bankId } = ctx.request.body
+        const { bankID } = ctx.request.body
         const { file } = ctx.request.files
         const workbook = XLSX.readFile(file.path)
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -311,7 +384,7 @@ router.post('/importQuestion', async (ctx, next) => {
             if (xlsxJson[i]['选项G'] !== undefined && xlsxJson[i]['选项G'].trim() !== '') options.push(xlsxJson[i]['选项G'])
 
             const tempObj = {
-                bankId,
+                bankID,
                 type,
                 title,
                 options,
@@ -337,15 +410,105 @@ router.post('/createExam', async (ctx, next) => {
         message: ''
     }
 
-    const { openID, bankId } = ctx.request.body
-    const [err, res] = await to(questionDao.createExam(bankId, 1, 10))
+    const { openID, bankID } = ctx.request.body
+    // 根据bankid获取题库信息
+    const [err, res] = await to(questionBankDao.findOne({ '_id': bankID }))
 
     if (err) {
         console.log(err)
         result.code = 1001
         result.message = '数据库错误'
     } else {
-        result.data = res
+        if (res !== null) {
+            const { singleNum, multipleNum, judgeNum, duration, times} = res
+            let singleArr = [],
+                singleAnsArr = [],
+                multipleArr = [],
+                multipleAnsArr = [],
+                judgeArr = [],
+                judgeAnsArr = [];
+
+            // 判断考试次数
+            const examTimes = await examDao.getCount({
+                openID,
+                bankID
+            })
+
+            if (examTimes >= times) {
+                result.code = 5007
+                result.message = '已超过最大考试次数'
+            } else {
+                // 取单选题
+                const [err1, res1] = await to(questionDao.createExam(bankID, 1, singleNum))
+
+                if (err1) {
+                    console.log(err1)
+                    result.code = 1001
+                    result.message = '数据库错误'
+                } else {
+                    res1.map(single => {
+                        singleArr.push(single._id)
+                        singleAnsArr.push(single.answer)
+                    })
+
+                    // 取多选题
+                    const [err2, res2] = await to(questionDao.createExam(bankID, 2, multipleNum))
+
+                    if (err2) {
+                        console.log(err2)
+                        result.code = 1001
+                        result.message = '数据库错误'
+                    } else {
+                        res2.map(multiple => {
+                            multipleArr.push(multiple._id)
+                            multipleAnsArr.push(multiple.answer)
+                        })
+
+                        // 取判断题
+                        const [err3, res3] = await to(questionDao.createExam(bankID, 3, judgeNum))
+
+                        if (err3) {
+                            console.log(err3)
+                            result.code = 1001
+                            result.message = '数据库错误'
+                        } else {
+                            res3.map(judge => {
+                                judgeArr.push(judge._id)
+                                judgeAnsArr.push(judge.answer)
+                            })
+                        }
+
+                        // 插入数据库
+                        const [err4, res4] = await to(examDao.save({
+                            openID,
+                            bankID,
+                            questions: {
+                                singleArr,
+                                singleAnsArr,
+                                multipleArr,
+                                multipleAnsArr,
+                                judgeArr,
+                                judgeAnsArr
+                            },
+                            startTime: new Date().getTime(),
+                            duration,
+                            status: false,
+                            score: 0
+                        }))
+
+                        if (err4) {
+                            console.log(err4)
+                            result.code = 1001
+                            result.message = '数据库错误'
+                        } 
+                    }
+                }
+            }
+
+        } else {
+            result.code = 5005
+            result.message = '未找到考试对应的题库信息'
+        }
     }
 
     ctx.body = result
