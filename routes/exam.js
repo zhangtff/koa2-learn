@@ -231,7 +231,6 @@ router.post('/editQuestionBankStatus', async (ctx, next) => {
     }
 
     const { _id, status } = ctx.request.body
-
     if (status) {
         // 判断题目数量是否符合设定
         const [err, res] = await to(questionBankDao.findOne({ _id }))
@@ -279,10 +278,10 @@ router.post('/editQuestionBankStatus', async (ctx, next) => {
                             result.message = '数据库错误'
                         } else {
                             judgeCount = res3
-
+                            // console.log(singleCount, singleNum, multipleCount, multipleNum, judgeCount, judgeNum)
                             if (singleCount < singleNum || multipleCount < multipleNum || judgeCount < judgeNum) {
                                 result.code = 5006
-                                result.message = '请导入足够的试题后再开启本试题库'
+                                result.message = '请导入足够的试题后再开启本考试'
                             } else {
                                 const [err4, res4] = await to(questionBankDao.updateOne({ _id } ,{ status }))
 
