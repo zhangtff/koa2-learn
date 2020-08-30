@@ -121,7 +121,7 @@ router.post('/getUserList', async (ctx, next) => {
 })
 
 // 修改考生信息
-router.post('/getEditUser', async (ctx, next) => {
+router.post('/editUser', async (ctx, next) => {
     let result = { 
         code: 1000,
         message: ''
@@ -139,6 +139,26 @@ router.post('/getEditUser', async (ctx, next) => {
     ctx.body = result
 })
 
+// 解除考生已有的微信绑定关系
+router.post('/userUnbundWechat', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: ''
+    }
+
+    let { _id, openID } = ctx.request.body
+    await examDao.deleteMany({openID})
+
+    const [err, res] = await to(userDao.updateOne({_id} ,{ openID : '' }))
+
+    if (err) {
+        result.code = 1001
+        result.message = '数据库错误'
+    }
+
+    ctx.body = result
+})
+
 // 删除考生，支持批量，暂时不考虑考试记录的问题
 router.post('/deleteUser', async (ctx, next) => {
     let result = { 
@@ -146,6 +166,15 @@ router.post('/deleteUser', async (ctx, next) => {
         message: ''
     }
     const { ids } = ctx.request.body
+
+    // 删除考试信息需要增加删除考试记录的逻辑
+    for (let i = 0; i < ids.length; i++) {
+        const _id = ids[i]
+        const item= await userDao.findOne({ _id})
+        if (item !== null && item.openID !== '') {
+            await examDao.deleteMany({openID: item.openID})
+        }
+    }
 
     let [err, res] = await to(userDao.deleteMany({_id: { $in: ids }}))
 
@@ -402,6 +431,57 @@ router.post('/importQuestion', async (ctx, next) => {
     ctx.body = result
 })
 
+// 获取指定题库题目列表
+router.post('/getQuestionList', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        data: {
+            total: 0,
+            items: []
+        }
+    }
+
+    // 排序方式用1 和 -1 表示
+    const { pageNum, pageSize, sort, _id } = ctx.request.body
+    let query = {}
+
+    if (_id) query.bankID = _id
+
+    const [err, res] = await to(questionDao.getCount(query))
+    if (!err) result.data.total = res
+
+    const [err1, res1] = await to(questionDao.getList(query, null, pageNum, pageSize, sort))
+
+    if (err1) {
+        console.log(err1)
+        result.code = 1001
+        result.message = '数据库错误'
+    } else {
+        result.data.items = res1
+    }
+
+    ctx.body = result
+})
+
+// 删除题目信息，支持批量
+router.post('/deleteQuestion', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: ''
+    }
+    const { ids } = ctx.request.body
+
+    let [err, res] = await to(questionDao.deleteMany({_id: { $in: ids }}))
+
+    if (err) {
+        console.log(err)
+        result.code = 1001
+        result.message = '数据库错误'
+    }
+
+    ctx.body = result
+})
+
 // 开始考试
 router.post('/createExam', async (ctx, next) => {
     let result = { 
@@ -508,6 +588,67 @@ router.post('/createExam', async (ctx, next) => {
             result.code = 5005
             result.message = '未找到考试对应的题库信息'
         }
+    }
+
+    ctx.body = result
+})
+
+// 管理员获取考试记录
+router.post('/getExamList', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        data: {
+            total: 0,
+            items: []
+        }
+    }
+
+    // 排序方式用1 和 -1 表示
+    const { pageNum, pageSize, sort } = ctx.request.body
+
+    const [err, res] = await to(examDao.getCount())
+
+    if (!err) result.data.total = res 
+
+    const [err1, res1] = await to(examDao.examList(pageNum, pageSize, sort))
+
+    if (err1) {
+        console.log(err1)
+        result.code = 1001
+        result.message = '数据库错误'
+    } else {
+        // 处理返回结果，sql不完美代码来完善数据结构
+        const tempArr = []
+        res1.map(item => {
+            tempArr.push({
+                _id: item._id,
+                bankName: item.bank[0].name,
+                department: item.user[0].department,
+                name: item.user[0].name,
+                status: item.status,
+                score: item.score
+            })
+        })
+        result.data.items = tempArr
+    }
+
+    ctx.body = result
+})
+
+// 删除考试记录，支持批量
+router.post('/deletEexam', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: ''
+    }
+    const { ids } = ctx.request.body
+
+    let [err, res] = await to(examDao.deleteMany({_id: { $in: ids }}))
+
+    if (err) {
+        console.log(err)
+        result.code = 1001
+        result.message = '数据库错误'
     }
 
     ctx.body = result

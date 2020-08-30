@@ -2,6 +2,14 @@ const router = require('koa-router')()
 const { to } = require('await-to-js')
 const AdminDao = require('../moudle/adminDao')
 let adminDao = new AdminDao()
+const ReportDao = require('../moudle/reportDao')
+let reportDao = new ReportDao()
+const ArticleDao = require('../moudle/articleDao')
+let articleDao = new ArticleDao()
+const QuestionDao = require('../moudle/questionDao')
+const questionDao = new QuestionDao()
+const ExamDao = require('../moudle/examDao')
+const examDao = new ExamDao()
 
 router.prefix('/api/admin')
 
@@ -51,5 +59,26 @@ router.post('/logout', async (ctx, next) => {
     ctx.body = result
 })
 
+// 获取系统数据统计
+router.post('/systemData', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: ''
+    }
+
+    const reportSum = await reportDao.getCount()
+    const articleSum = await articleDao.getCount()
+    const questionSum = await questionDao.getCount()
+    const examSum = await examDao.getCount()
+
+    result.data = {
+        reportSum,
+        articleSum,
+        questionSum,
+        examSum
+    }
+    
+    ctx.body = result
+})
 
 module.exports = router

@@ -1,6 +1,7 @@
 const { Schema } = require('mongoose')
 const { mongoClient } = require('../lib/mongo')
 const BaseDao = require('../lib/baseDao')
+const mongoose = require('mongoose')
 
 const examSchema = new Schema({
     openID: {
@@ -9,9 +10,8 @@ const examSchema = new Schema({
         trim:true //去除数据前后的空格
     },
     bankID: {
-        type: String,
-        required: true,
-        trim:true //去除数据前后的空格
+        type: "objectId",
+        required: true
     },
     questions: {
         singleArr: [ String ],
@@ -49,6 +49,44 @@ const Exam = mongoClient.model(`Exam`, examSchema, 'exam')
 class ExamDao extends BaseDao {
     constructor() {
         super(Exam)
+    }
+
+    examList(pageNum, pageSize, sort = -1) {
+        return new Promise((resolve, reject) => {
+            this.Model.aggregate([
+                {
+                    $lookup: {
+                        from: 'questionBank',
+                        localField: 'bankID',
+                        foreignField: '_id',
+                        as: 'bank'
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'user',
+                        localField: 'openID',
+                        foreignField: 'openID',
+                        as: 'user'
+                    }
+                },
+                {
+                    "$project": {
+                        questions: 0
+                    }
+                }
+            ])
+            .skip((pageNum - 1) * pageSize)
+            .limit(pageSize)
+            .sort({'_id': sort})
+            .exec(function (err, record) {
+                if (err) {
+                    reject(err)
+                } else {
+                    resolve(record)
+                }
+            })
+        })
     }
 }
 
