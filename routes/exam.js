@@ -1,5 +1,6 @@
 const router = require('koa-router')()
 const { to } = require('await-to-js')
+const mongoose = require('mongoose')
 const XLSX = require('xlsx')
 const UserDao = require('../moudle/userDao')
 const userDao = new UserDao()
@@ -491,108 +492,115 @@ router.post('/createExam', async (ctx, next) => {
     }
 
     const { openID, bankID } = ctx.request.body
-    // 根据bankid获取题库信息
-    const [err, res] = await to(questionBankDao.findOne({ '_id': bankID }))
-
-    if (err) {
-        console.log(err)
-        result.code = 1001
-        result.message = '数据库错误'
+    // 判断openID是否已绑定考生
+    const userObj = await userDao.findOne({openID})
+    if (userObj === null) {
+        result.code = 1002
+        result.message = '参数异常'
     } else {
-        if (res !== null) {
-            const { singleNum, multipleNum, judgeNum, duration, times} = res
-            let singleArr = [],
-                singleAnsArr = [],
-                multipleArr = [],
-                multipleAnsArr = [],
-                judgeArr = [],
-                judgeAnsArr = [];
+        // 根据bankid获取题库信息
+        const [err, res] = await to(questionBankDao.findOne({ '_id': bankID }))
 
-            // 判断考试次数
-            const examTimes = await examDao.getCount({
-                openID,
-                bankID
-            })
+        if (err) {
+            console.log(err)
+            result.code = 1001
+            result.message = '数据库错误'
+        } else {
+            if (res !== null) {
+                const { singleNum, multipleNum, judgeNum, duration, times} = res
+                let singleArr = [],
+                    singleAnsArr = [],
+                    multipleArr = [],
+                    multipleAnsArr = [],
+                    judgeArr = [],
+                    judgeAnsArr = [];
 
-            if (examTimes >= times) {
-                result.code = 5007
-                result.message = '已超过最大考试次数'
-            } else {
-                // 取单选题
-                const [err1, res1] = await to(questionDao.createExam(bankID, 1, singleNum))
+                // 判断考试次数
+                const examTimes = await examDao.getCount({
+                    openID,
+                    bankID
+                })
 
-                if (err1) {
-                    console.log(err1)
-                    result.code = 1001
-                    result.message = '数据库错误'
+                if (examTimes >= times) {
+                    result.code = 5007
+                    result.message = '已超过最大考试次数'
                 } else {
-                    res1.map(single => {
-                        singleArr.push(single._id)
-                        singleAnsArr.push(single.answer)
-                    })
+                    // 取单选题
+                    const [err1, res1] = await to(questionDao.createExam(bankID, 1, singleNum))
 
-                    // 取多选题
-                    const [err2, res2] = await to(questionDao.createExam(bankID, 2, multipleNum))
-
-                    if (err2) {
-                        console.log(err2)
+                    if (err1) {
+                        console.log(err1)
                         result.code = 1001
                         result.message = '数据库错误'
                     } else {
-                        res2.map(multiple => {
-                            multipleArr.push(multiple._id)
-                            multipleAnsArr.push(multiple.answer)
+                        res1.map(single => {
+                            singleArr.push(single._id)
+                            singleAnsArr.push(single.answer)
                         })
 
-                        // 取判断题
-                        const [err3, res3] = await to(questionDao.createExam(bankID, 3, judgeNum))
+                        // 取多选题
+                        const [err2, res2] = await to(questionDao.createExam(bankID, 2, multipleNum))
 
-                        if (err3) {
-                            console.log(err3)
+                        if (err2) {
+                            console.log(err2)
                             result.code = 1001
                             result.message = '数据库错误'
                         } else {
-                            res3.map(judge => {
-                                judgeArr.push(judge._id)
-                                judgeAnsArr.push(judge.answer)
+                            res2.map(multiple => {
+                                multipleArr.push(multiple._id)
+                                multipleAnsArr.push(multiple.answer)
                             })
-                        }
 
-                        // 插入数据库
-                        const [err4, res4] = await to(examDao.save({
-                            openID,
-                            bankID,
-                            questions: {
-                                singleArr,
-                                singleAnsArr,
-                                multipleArr,
-                                multipleAnsArr,
-                                judgeArr,
-                                judgeAnsArr
-                            },
-                            startTime: new Date().getTime(),
-                            duration,
-                            status: false,
-                            score: 0
-                        }))
+                            // 取判断题
+                            const [err3, res3] = await to(questionDao.createExam(bankID, 3, judgeNum))
 
-                        if (err4) {
-                            console.log(err4)
-                            result.code = 1001
-                            result.message = '数据库错误'
-                        } else {
-                            result.data._id = res4._id
+                            if (err3) {
+                                console.log(err3)
+                                result.code = 1001
+                                result.message = '数据库错误'
+                            } else {
+                                res3.map(judge => {
+                                    judgeArr.push(judge._id)
+                                    judgeAnsArr.push(judge.answer)
+                                })
+                            }
+
+                            // 插入数据库
+                            const [err4, res4] = await to(examDao.save({
+                                openID,
+                                bankID,
+                                questions: {
+                                    singleArr,
+                                    singleAnsArr,
+                                    multipleArr,
+                                    multipleAnsArr,
+                                    judgeArr,
+                                    judgeAnsArr
+                                },
+                                startTime: new Date().getTime(),
+                                duration,
+                                status: false,
+                                score: 0
+                            }))
+
+                            if (err4) {
+                                console.log(err4)
+                                result.code = 1001
+                                result.message = '数据库错误'
+                            } else {
+                                result.data._id = res4._id
+                            }
                         }
                     }
                 }
-            }
 
-        } else {
-            result.code = 5005
-            result.message = '未找到考试对应的题库信息'
+            } else {
+                result.code = 5005
+                result.message = '未找到考试对应的题库信息'
+            }
         }
     }
-
+    
     ctx.body = result
 })
 
@@ -623,11 +631,15 @@ router.post('/getExamList', async (ctx, next) => {
         // 处理返回结果，sql不完美代码来完善数据结构
         const tempArr = []
         res1.map(item => {
+            const bankName = item.bank.length === 0 ? '未知' : item.bank[0].name
+            const department = item.user.length === 0 ? '未知' : item.user[0].department
+            const name = item.user.length === 0 ? '未知' : item.user[0].name
+
             tempArr.push({
                 _id: item._id,
-                bankName: item.bank[0].name,
-                department: item.user[0].department,
-                name: item.user[0].name,
+                bankName,
+                department,
+                name,
                 status: item.status,
                 score: item.score
             })
@@ -786,8 +798,8 @@ router.post('/getExamListAndHistory', async (ctx, next) => {
             const examArr = await examDao.getList({
                 openID: openID,
                 bankID: res[i]._id
-            }, 'status score', 1, 1000, -1)
-            tempArr.push({ ...res[i]._doc, examArr})
+            }, 'status score startTime duration', 1, 1000, -1)
+            tempArr.push({ ...res[i]._doc, examArr, currentTime: new Date().getTime()})
         }
 
         result.data.items = tempArr
@@ -804,31 +816,87 @@ router.post('/getExamInfo', async (ctx, next) => {
         data: {}
     }
     const { _id } = ctx.request.body
-    const examObj = await examDao.findOne({ _id })
-    if (examObj === null) {
+    const [err, res] = await to(examDao.findOne({ _id }))
+    if (err) {
         result.code = 1001
         result.message = '数据库错误'
     } else {
-        const { _id, duration, startTime } = examObj
-        const { singleArr, multipleArr, judgeArr} = examObj.questions
-        console.log(singleArr, multipleArr, judgeArr)
-        const singleInfoArr = await questionDao.findAll({_id: { $in: singleArr }}, 'title options')
-        const multipleInfoArr = await questionDao.findAll({_id: { $in: multipleArr }}, 'title options')
-        const judgeInfoArr = await questionDao.findAll({_id: { $in: judgeArr }}, 'title options')
-
-        result.data.singleInfoArr = singleInfoArr
-        result.data.multipleInfoArr = multipleInfoArr
-        result.data.judgeInfoArr = judgeInfoArr
-        result.data = {
-            _id,
-            duration,
-            startTime,
-            singleInfoArr,
-            multipleInfoArr,
-            judgeInfoArr
+        const examObj = res
+        if (examObj === null) {
+            result.code = 1001
+            result.message = '数据库错误'
+        } else {
+            if (examObj.status) {
+                result.code = 1001
+                result.message = '数据库错误'
+            } else {
+                const { _id, duration, startTime } = examObj
+                const { singleArr, multipleArr, judgeArr} = examObj.questions
+                const singleInfoArr = await questionDao.findAll({_id: { $in: singleArr }}, 'title options')
+                const multipleInfoArr = await questionDao.findAll({_id: { $in: multipleArr }}, 'title options')
+                const judgeInfoArr = await questionDao.findAll({_id: { $in: judgeArr }}, 'title options')
+        
+                result.data.singleInfoArr = singleInfoArr
+                result.data.multipleInfoArr = multipleInfoArr
+                result.data.judgeInfoArr = judgeInfoArr
+                result.data = {
+                    _id,
+                    duration,
+                    startTime,
+                    singleInfoArr,
+                    multipleInfoArr,
+                    judgeInfoArr,
+                    currentTime: new Date().getTime()
+                }
+            }
         }
     }
-    
+
+    ctx.body = result
+})
+
+// 查看已完成考试详情
+router.post('/getExamDetail', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: '',
+        data: {}
+    }
+    const { _id } = ctx.request.body
+    const [err, res] = await to(examDao.findOne({ _id }))
+    if (err) {
+        result.code = 1001
+        result.message = '数据库错误'
+    } else {
+        const examObj = res
+        if (examObj === null) {
+            result.code = 1001
+            result.message = '数据库错误'
+        } else {
+            if (!examObj.status) {
+                result.code = 1001
+                result.message = '数据库错误'
+            } else {
+                const { score } = examObj
+                const { singleArr, multipleArr, judgeArr} = examObj.questions
+                const singleInfoArr = await questionDao.findAll({_id: { $in: singleArr }}, 'title options')
+                const multipleInfoArr = await questionDao.findAll({_id: { $in: multipleArr }}, 'title options')
+                const judgeInfoArr = await questionDao.findAll({_id: { $in: judgeArr }}, 'title options')
+        
+                result.data.singleInfoArr = singleInfoArr
+                result.data.multipleInfoArr = multipleInfoArr
+                result.data.judgeInfoArr = judgeInfoArr
+                result.data = {
+                    score,
+                    singleInfoArr,
+                    multipleInfoArr,
+                    judgeInfoArr,
+                    questions: examObj.questions
+                }
+            }
+        }
+    }
+
     ctx.body = result
 })
 
@@ -840,7 +908,45 @@ router.post('/submitExam', async (ctx, next) => {
         data: {}
     }
 
+    const { userSingleAnsArr, userMultipleAnsArr, userJudgeAnsArr, _id} = ctx.request.body
+    const [err, res] = await to(examDao.findOne({ _id }))
+    let examObj = null
+    if (err) {
+        result.code = 1001
+        result.message = '数据库错误'
+    } else {
+        console.log(res)
+        examObj = res
+    }
+    const { startTime, duration} = examObj
+    const { singleAnsArr, multipleAnsArr, judgeAnsArr} = examObj.questions
+    const handTime = new Date().getTime()
+    if (handTime - startTime > duration * 61 * 1000 ) {
+        result.code = 5008
+        result.message = '提交时间超出最后截止时间'
+    } else {
+        // 计算成绩
+        let score = 0
+        for (let i = 0; i < singleAnsArr.length; i++) {
+            if (singleAnsArr[i] === userSingleAnsArr[i]) score++
+        }
+        for (let i = 0; i < multipleAnsArr.length; i++) {
+            if (multipleAnsArr[i] === userMultipleAnsArr[i]) score++
+        }
+        for (let i = 0; i < judgeAnsArr.length; i++) {
+            if (judgeAnsArr[i] === userJudgeAnsArr[i]) score++
+        }
 
+        await examDao.updateOne({ _id }, {
+            'questions.userSingleAnsArr': userSingleAnsArr,
+            'questions.userMultipleAnsArr': userMultipleAnsArr,
+            'questions.userJudgeAnsArr': userJudgeAnsArr,
+            handTime,
+            score,
+            status: true
+        })
+        result.data.score = score
+    }
 
     ctx.body = result
 })
