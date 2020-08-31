@@ -140,7 +140,7 @@ router.post('/editUser', async (ctx, next) => {
 })
 
 // 解除考生已有的微信绑定关系
-router.post('/userUnbundWechat', async (ctx, next) => {
+router.post('/userUnbindWechat', async (ctx, next) => {
     let result = { 
         code: 1000,
         message: ''
@@ -159,7 +159,7 @@ router.post('/userUnbundWechat', async (ctx, next) => {
     ctx.body = result
 })
 
-// 删除考生，支持批量，暂时不考虑考试记录的问题
+// 删除考生，支持批量，同时考试记录
 router.post('/deleteUser', async (ctx, next) => {
     let result = { 
         code: 1000,
@@ -486,7 +486,8 @@ router.post('/deleteQuestion', async (ctx, next) => {
 router.post('/createExam', async (ctx, next) => {
     let result = { 
         code: 1000,
-        message: ''
+        message: '',
+        data: {}
     }
 
     const { openID, bankID } = ctx.request.body
@@ -579,7 +580,9 @@ router.post('/createExam', async (ctx, next) => {
                             console.log(err4)
                             result.code = 1001
                             result.message = '数据库错误'
-                        } 
+                        } else {
+                            result.data._id = res4._id
+                        }
                     }
                 }
             }
@@ -650,6 +653,194 @@ router.post('/deletEexam', async (ctx, next) => {
         result.code = 1001
         result.message = '数据库错误'
     }
+
+    ctx.body = result
+})
+
+// 获取处室列表
+router.post('/getDepartmentList', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: '',
+        data: {}
+    }
+
+    let [err, res] = await to(userDao.departmentList())
+
+    if (err) {
+        console.log(err)
+        result.code = 1001
+        result.message = '数据库错误'
+    } else {
+        result.data.items = res
+    }
+
+    ctx.body = result
+})
+
+// 判断用户是否已经绑定处室信息
+router.post('/getUserbindStatus', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: '',
+        data: {}
+    }
+
+    const { openID } = ctx.request.body
+    let [err, res] = await to(userDao.findOne({openID}))
+
+    if (err) {
+        console.log(err)
+        result.code = 1001
+        result.message = '数据库错误'
+    } else {
+        if (res === null) {
+            result.data.status = false
+        } else {
+            result.data.status = true
+        }
+    }
+
+    ctx.body = result
+})
+
+// 获取指定处室下未绑定微信的考生姓名列表
+router.post('/getUserListByDepartment', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: '',
+        data: {}
+    }
+    const { department } = ctx.request.body
+
+    let [err, res] = await to(userDao.userListByDepartment(department))
+
+    if (err) {
+        console.log(err)
+        result.code = 1001
+        result.message = '数据库错误'
+    } else {
+        result.data.items = res
+    }
+
+    ctx.body = result
+})
+
+// 考生绑定微信
+router.post('/userbindWechat', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: ''
+    }
+
+    let { department, name, openID } = ctx.request.body
+
+    if ( department === undefined || name === undefined || openID === undefined) {
+        result.code = 1002
+        result.message = '参数异常'
+    } else {
+        const [err, res] = await to(userDao.findOne({ department, name }))
+
+        if (err) {
+            result.code = 1001
+            result.message = '数据库错误'
+        } else {
+            if (res === null) {
+                result.code = 1002
+                result.message = '参数异常'
+            } else {
+                const [err1, res1] = await to(userDao.updateOne({ department, name } ,{ openID }))
+
+                if (err1) {
+                    result.code = 1001
+                    result.message = '数据库错误'
+                }
+            }
+        }
+    }
+
+    ctx.body = result
+})
+
+// 获取当前开启的考试和考试对应的考试记录
+router.post('/getExamListAndHistory', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: '',
+        data: {
+            items: []
+        }
+    }
+    const { openID } = ctx.request.body
+
+    const [err, res] = await to(questionBankDao.getList({ status: true }, null, 1, 100, -1))
+
+    if (err) {
+        console.log(err)
+        result.code = 1001
+        result.message = '数据库错误'
+    } else {
+        const tempArr = []
+        for (let i = 0; i < res.length; i++) {
+            
+            const examArr = await examDao.getList({
+                openID: openID,
+                bankID: res[i]._id
+            }, 'status score', 1, 1000, -1)
+            tempArr.push({ ...res[i]._doc, examArr})
+        }
+
+        result.data.items = tempArr
+    }
+
+    ctx.body = result
+})
+
+// 获取考试试卷详情
+router.post('/getExamInfo', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: '',
+        data: {}
+    }
+    const { _id } = ctx.request.body
+    const examObj = await examDao.findOne({ _id })
+    if (examObj === null) {
+        result.code = 1001
+        result.message = '数据库错误'
+    } else {
+        const { _id, duration, startTime } = examObj
+        const { singleArr, multipleArr, judgeArr} = examObj.questions
+        console.log(singleArr, multipleArr, judgeArr)
+        const singleInfoArr = await questionDao.findAll({_id: { $in: singleArr }}, 'title options')
+        const multipleInfoArr = await questionDao.findAll({_id: { $in: multipleArr }}, 'title options')
+        const judgeInfoArr = await questionDao.findAll({_id: { $in: judgeArr }}, 'title options')
+
+        result.data.singleInfoArr = singleInfoArr
+        result.data.multipleInfoArr = multipleInfoArr
+        result.data.judgeInfoArr = judgeInfoArr
+        result.data = {
+            _id,
+            duration,
+            startTime,
+            singleInfoArr,
+            multipleInfoArr,
+            judgeInfoArr
+        }
+    }
+    
+    ctx.body = result
+})
+
+// 交卷
+router.post('/submitExam', async (ctx, next) => {
+    let result = { 
+        code: 1000,
+        message: '',
+        data: {}
+    }
+
+
 
     ctx.body = result
 })

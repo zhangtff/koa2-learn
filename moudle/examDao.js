@@ -50,7 +50,7 @@ class ExamDao extends BaseDao {
     constructor() {
         super(Exam)
     }
-
+    // 关联题库表和考生表查询
     examList(pageNum, pageSize, sort = -1) {
         return new Promise((resolve, reject) => {
             this.Model.aggregate([

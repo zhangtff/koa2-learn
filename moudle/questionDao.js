@@ -33,12 +33,7 @@ class QuestionDao extends BaseDao {
         super(Question)
     }
 
-    /**
-     * 使用 Model save() 添加 doc
-     *
-     * @param obj 构造实体的对象
-     * @returns {Promise}
-     */
+    // 考试抽取试题
     createExam(bankID, type, limitSum) {
         return new Promise((resolve, reject) => {
             this.Model.aggregate([{ $match: {
