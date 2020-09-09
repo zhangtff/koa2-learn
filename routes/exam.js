@@ -759,13 +759,18 @@ router.post('/userbindWechat', async (ctx, next) => {
         } else {
             if (res === null) {
                 result.code = 1002
-                result.message = '参数异常'
+                result.message = '所选处室下不存在考生' + name
             } else {
-                const [err1, res1] = await to(userDao.updateOne({ department, name } ,{ openID }))
+                if (res.openID !== '') {
+                    result.code = 1002
+                    result.message = '考生' + name +'已绑定其他微信号'
+                } else {
+                    const [err1, res1] = await to(userDao.updateOne({ department, name } ,{ openID }))
 
-                if (err1) {
-                    result.code = 1001
-                    result.message = '数据库错误'
+                    if (err1) {
+                        result.code = 1001
+                        result.message = '数据库错误'
+                    }
                 }
             }
         }
