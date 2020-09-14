@@ -33,7 +33,6 @@ router.post('/search', async (ctx, next) => {
 
     const type = reqBody.type
     const keyword = reqBody.keyword
-    console.log(type, keyword)
     let query,code,res,err
 
     // 只检索标题
@@ -94,6 +93,25 @@ router.post('/search', async (ctx, next) => {
     }
 
     ctx.body = code
+})
+
+// 获取法律文件列表
+router.post('/getList', async (ctx, next) => {
+  let result = { 
+    code: 1000,
+    message: ''
+}
+
+  const [err, res] = await to(lawDao.findAll({}, '_id title'))
+
+  if (err) {
+    result.code = 1001
+    result.message = '数据库错误'
+  } else {
+    result.data = res
+  }
+
+  ctx.body = result
 })
 
 
