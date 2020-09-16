@@ -66,8 +66,8 @@ router.post('/edit', async(ctx, next) => {
         message: ''
     }
 
-    if (ctx.request.files) {
-        const repData = ctx.request.body
+    const resData = ctx.request.body
+    if (ctx.request.files.file) {
         const { file } = ctx.request.files
         const dir = path.join(__dirname + '/../static/upload/banner/')
         const tempArr = file.name.split('.')
@@ -75,7 +75,7 @@ router.post('/edit', async(ctx, next) => {
         const fileName = new Date().getTime() + '.' + suffix
 
         fs.copyFileSync(file.path, dir + fileName)
-        repData.thumb = '/upload/banner/' + fileName
+        resData.thumb = '/upload/banner/' + fileName
 
         const [err, res] = await to(bannerDao.updateOne({ _id: resData._id }, resData))
         if (err) {
@@ -83,8 +83,11 @@ router.post('/edit', async(ctx, next) => {
             result.message = '数据库错误'
         }
     } else {
-        result.code = 6001
-        result.message = '上传图片文件异常'
+        const [err, res] = await to(bannerDao.updateOne({ _id: resData._id }, resData))
+        if (err) {
+            result.code = 1001
+            result.message = '数据库错误'
+        }
     }
 
     ctx.body = result
