@@ -14,8 +14,8 @@ const examDao = new ExamDao()
 router.prefix('/api/exam')
 
 // 导入考生信息
-router.post('/importUser', async (ctx, next) => {
-    let result = { 
+router.post('/importUser', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
@@ -28,17 +28,19 @@ router.post('/importUser', async (ctx, next) => {
         const xlsxJson = XLSX.utils.sheet_to_json(worksheet)
 
         // 循环避免重复插入数据库表
-        for(let i = 0; i < xlsxJson.length; i++) {
+        for (let i = 0; i < xlsxJson.length; i++) {
+            const area = xlsxJson[i]['地市']
             const department = xlsxJson[i]['处室']
             const name = xlsxJson[i]['姓名']
 
-            if (department && name) {
+            if (area && department && name) {
                 const tempObj = {
                     openID: '',
+                    area,
                     department,
                     name
                 }
-                await userDao.updateOne(tempObj, tempObj, {
+                await userDao.updateOne({ area, department, name }, tempObj, {
                     upsert: true
                 })
             }
@@ -52,16 +54,16 @@ router.post('/importUser', async (ctx, next) => {
 })
 
 // 增加考生信息
-router.post('/addUser', async (ctx, next) => {
-    let result = { 
+router.post('/addUser', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
 
-    let { department, name } = ctx.request.body
+    let { area, department, name } = ctx.request.body
 
     // 判断考生信息是否已录入，目前不允许部门名称和姓名都一样的记录重复
-    const [err, res] = await to(userDao.findOne({ department, name}))
+    const [err, res] = await to(userDao.findOne({ area, department, name }))
 
     if (err) {
         result.code = 1001
@@ -70,6 +72,7 @@ router.post('/addUser', async (ctx, next) => {
         if (res === null) {
             const [err1, res1] = await to(userDao.save({
                 openID: '',
+                area,
                 department,
                 name
             }))
@@ -80,7 +83,7 @@ router.post('/addUser', async (ctx, next) => {
             }
         } else {
             result.code = 5002
-            result.message = '已存在相同部门和姓名的记录'
+            result.message = '已存在相同地市、部门和姓名的记录'
         }
     }
 
@@ -88,8 +91,8 @@ router.post('/addUser', async (ctx, next) => {
 })
 
 // 获取考生信息列表
-router.post('/getUserList', async (ctx, next) => {
-    let result = { 
+router.post('/getUserList', async(ctx, next) => {
+    let result = {
         code: 1000,
         data: {
             total: 0,
@@ -98,15 +101,16 @@ router.post('/getUserList', async (ctx, next) => {
     }
 
     // 排序方式用1 和 -1 表示
-    const { pageNum, pageSize, sort, department, name } = ctx.request.body
+    const { pageNum, pageSize, sort, area, department, name } = ctx.request.body
     let query = {}
 
-    if (department) query.department = { $regex: department }
+    if (area) query.area = area
+    if (department) query.department = department
     if (name) query.name = { $regex: name }
 
     const [err, res] = await to(userDao.getCount(query))
 
-    if (!err) result.data.total = res 
+    if (!err) result.data.total = res
 
     const [err1, res1] = await to(userDao.getList(query, null, pageNum, pageSize, sort))
 
@@ -122,15 +126,15 @@ router.post('/getUserList', async (ctx, next) => {
 })
 
 // 修改考生信息
-router.post('/editUser', async (ctx, next) => {
-    let result = { 
+router.post('/editUser', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
 
-    let { _id, department, name, openID } = ctx.request.body
+    let { _id, area, department, name, openID } = ctx.request.body
 
-    const [err, res] = await to(userDao.updateOne({_id} ,{ department, name, openID: openID ? openID : '' }))
+    const [err, res] = await to(userDao.updateOne({ _id }, { area, department, name, openID: openID ? openID : '' }))
 
     if (err) {
         result.code = 1001
@@ -141,16 +145,16 @@ router.post('/editUser', async (ctx, next) => {
 })
 
 // 解除考生已有的微信绑定关系
-router.post('/userUnbindWechat', async (ctx, next) => {
-    let result = { 
+router.post('/userUnbindWechat', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
 
     let { _id, openID } = ctx.request.body
-    await examDao.deleteMany({openID})
+    await examDao.deleteMany({ openID })
 
-    const [err, res] = await to(userDao.updateOne({_id} ,{ openID : '' }))
+    const [err, res] = await to(userDao.updateOne({ _id }, { openID: '' }))
 
     if (err) {
         result.code = 1001
@@ -161,8 +165,8 @@ router.post('/userUnbindWechat', async (ctx, next) => {
 })
 
 // 删除考生，支持批量，同时考试记录
-router.post('/deleteUser', async (ctx, next) => {
-    let result = { 
+router.post('/deleteUser', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
@@ -171,13 +175,13 @@ router.post('/deleteUser', async (ctx, next) => {
     // 删除考试信息需要增加删除考试记录的逻辑
     for (let i = 0; i < ids.length; i++) {
         const _id = ids[i]
-        const item= await userDao.findOne({ _id})
+        const item = await userDao.findOne({ _id })
         if (item !== null && item.openID !== '') {
-            await examDao.deleteMany({openID: item.openID})
+            await examDao.deleteMany({ openID: item.openID })
         }
     }
 
-    let [err, res] = await to(userDao.deleteMany({_id: { $in: ids }}))
+    let [err, res] = await to(userDao.deleteMany({ _id: { $in: ids } }))
 
     if (err) {
         console.log(err)
@@ -189,8 +193,8 @@ router.post('/deleteUser', async (ctx, next) => {
 })
 
 // 增加考试题库分类,新增题库默认为关闭状态，需要导入符合设置的各类型题目后才能开启
-router.post('/addQuestionBank', async (ctx, next) => {
-    let result = { 
+router.post('/addQuestionBank', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
@@ -221,8 +225,8 @@ router.post('/addQuestionBank', async (ctx, next) => {
 })
 
 // 获取题库列表
-router.post('/getQuestionBankList', async (ctx, next) => {
-    let result = { 
+router.post('/getQuestionBankList', async(ctx, next) => {
+    let result = {
         code: 1000,
         data: {
             total: 0,
@@ -254,8 +258,8 @@ router.post('/getQuestionBankList', async (ctx, next) => {
 })
 
 // 修改题库状态
-router.post('/editQuestionBankStatus', async (ctx, next) => {
-    let result = { 
+router.post('/editQuestionBankStatus', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
@@ -289,7 +293,7 @@ router.post('/editQuestionBankStatus', async (ctx, next) => {
                         bankID: _id,
                         type: 2
                     }))
-    
+
                     if (err2) {
                         console.log(err2)
                         result.code = 1001
@@ -301,19 +305,19 @@ router.post('/editQuestionBankStatus', async (ctx, next) => {
                             bankID: _id,
                             type: 3
                         }))
-        
+
                         if (err3) {
                             console.log(err3)
                             result.code = 1001
                             result.message = '数据库错误'
                         } else {
                             judgeCount = res3
-                            // console.log(singleCount, singleNum, multipleCount, multipleNum, judgeCount, judgeNum)
+                                // console.log(singleCount, singleNum, multipleCount, multipleNum, judgeCount, judgeNum)
                             if (singleCount < singleNum || multipleCount < multipleNum || judgeCount < judgeNum) {
                                 result.code = 5006
                                 result.message = '请导入足够的试题后再开启本考试'
                             } else {
-                                const [err4, res4] = await to(questionBankDao.updateOne({ _id } ,{ status }))
+                                const [err4, res4] = await to(questionBankDao.updateOne({ _id }, { status }))
 
                                 if (err4) {
                                     result.code = 1001
@@ -327,10 +331,10 @@ router.post('/editQuestionBankStatus', async (ctx, next) => {
                 result.code = 5005
                 result.message = '未找到考试对应的题库信息'
             }
-        }    
+        }
 
     } else {
-        const [err, res] = await to(questionBankDao.updateOne({ _id } ,{ status }))
+        const [err, res] = await to(questionBankDao.updateOne({ _id }, { status }))
 
         if (err) {
             result.code = 1001
@@ -342,8 +346,8 @@ router.post('/editQuestionBankStatus', async (ctx, next) => {
 })
 
 // 修改题库信息
-router.post('/editQuestionBank', async (ctx, next) => {
-    let result = { 
+router.post('/editQuestionBank', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
@@ -360,14 +364,14 @@ router.post('/editQuestionBank', async (ctx, next) => {
 })
 
 // 删除题库信息，支持批量
-router.post('/deleteQuestionBank', async (ctx, next) => {
-    let result = { 
+router.post('/deleteQuestionBank', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
     const { ids } = ctx.request.body
 
-    let [err, res] = await to(questionBankDao.deleteMany({_id: { $in: ids }}))
+    let [err, res] = await to(questionBankDao.deleteMany({ _id: { $in: ids } }))
 
     if (err) {
         console.log(err)
@@ -379,14 +383,14 @@ router.post('/deleteQuestionBank', async (ctx, next) => {
 })
 
 // 导入题目信息
-router.post('/importQuestion', async (ctx, next) => {
-    let result = { 
+router.post('/importQuestion', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
 
     // 判断是否上传文件
-    if (ctx.request.files) { 
+    if (ctx.request.files) {
         const { bankID } = ctx.request.body
         const { file } = ctx.request.files
         const workbook = XLSX.readFile(file.path)
@@ -394,13 +398,13 @@ router.post('/importQuestion', async (ctx, next) => {
         const xlsxJson = XLSX.utils.sheet_to_json(worksheet)
 
         // 循环避免重复插入数据库表
-        for(let i = 0; i < xlsxJson.length; i++) {
+        for (let i = 0; i < xlsxJson.length; i++) {
             let type = ''
             let options = []
             const title = xlsxJson[i]['题目']
             const typeStr = xlsxJson[i]['类型']
             const answer = xlsxJson[i]['答案'].replace(/[^a-z]/ig, '').toUpperCase()
-            
+
             if (typeStr.indexOf('单选') > -1) type = 1
             if (typeStr.indexOf('多选') > -1) type = 2
             if (typeStr.indexOf('判断') > -1) type = 3
@@ -433,8 +437,8 @@ router.post('/importQuestion', async (ctx, next) => {
 })
 
 // 获取指定题库题目列表
-router.post('/getQuestionList', async (ctx, next) => {
-    let result = { 
+router.post('/getQuestionList', async(ctx, next) => {
+    let result = {
         code: 1000,
         data: {
             total: 0,
@@ -465,14 +469,14 @@ router.post('/getQuestionList', async (ctx, next) => {
 })
 
 // 删除题目信息，支持批量
-router.post('/deleteQuestion', async (ctx, next) => {
-    let result = { 
+router.post('/deleteQuestion', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
     const { ids } = ctx.request.body
 
-    let [err, res] = await to(questionDao.deleteMany({_id: { $in: ids }}))
+    let [err, res] = await to(questionDao.deleteMany({ _id: { $in: ids } }))
 
     if (err) {
         console.log(err)
@@ -484,16 +488,16 @@ router.post('/deleteQuestion', async (ctx, next) => {
 })
 
 // 开始考试
-router.post('/createExam', async (ctx, next) => {
-    let result = { 
+router.post('/createExam', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: '',
         data: {}
     }
 
     const { openID, bankID } = ctx.request.body
-    // 判断openID是否已绑定考生
-    const userObj = await userDao.findOne({openID})
+        // 判断openID是否已绑定考生
+    const userObj = await userDao.findOne({ openID })
     if (userObj === null) {
         result.code = 1002
         result.message = '参数异常'
@@ -507,7 +511,7 @@ router.post('/createExam', async (ctx, next) => {
             result.message = '数据库错误'
         } else {
             if (res !== null) {
-                const { singleNum, multipleNum, judgeNum, duration, times} = res
+                const { singleNum, multipleNum, judgeNum, duration, times } = res
                 let singleArr = [],
                     singleAnsArr = [],
                     multipleArr = [],
@@ -600,13 +604,13 @@ router.post('/createExam', async (ctx, next) => {
             }
         }
     }
-    
+
     ctx.body = result
 })
 
 // 管理员获取考试记录
-router.post('/getExamList', async (ctx, next) => {
-    let result = { 
+router.post('/getExamList', async(ctx, next) => {
+    let result = {
         code: 1000,
         data: {
             total: 0,
@@ -615,16 +619,16 @@ router.post('/getExamList', async (ctx, next) => {
     }
 
     // 排序方式用1 和 -1 表示
-    const { pageNum, pageSize, sort } = ctx.request.body
+    const { pageNum, pageSize, sort, area, department, name } = ctx.request.body
+    let query = {}
 
-    const [err, res] = await to(examDao.getCount())
+    if (area) query['user.area'] = area
+    if (department) query['user.department'] = department
+    if (name) query['user.name'] = { $regex: name }
 
-    if (!err) result.data.total = res 
-
-    const [err1, res1] = await to(examDao.examList(pageNum, pageSize, sort))
+    const [err1, res1] = await to(examDao.examList(query, pageNum, pageSize, sort))
 
     if (err1) {
-        console.log(err1)
         result.code = 1001
         result.message = '数据库错误'
     } else {
@@ -632,11 +636,13 @@ router.post('/getExamList', async (ctx, next) => {
         const tempArr = []
         res1.map(item => {
             const bankName = item.bank.length === 0 ? '未知' : item.bank[0].name
+            const area = item.user.length === 0 ? '未知' : item.user[0].area
             const department = item.user.length === 0 ? '未知' : item.user[0].department
             const name = item.user.length === 0 ? '未知' : item.user[0].name
 
             tempArr.push({
                 _id: item._id,
+                area,
                 bankName,
                 department,
                 name,
@@ -645,23 +651,23 @@ router.post('/getExamList', async (ctx, next) => {
             })
         })
         result.data.items = tempArr
+        result.data.total = tempArr.length
     }
 
     ctx.body = result
 })
 
 // 删除考试记录，支持批量
-router.post('/deletEexam', async (ctx, next) => {
-    let result = { 
+router.post('/deletEexam', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
     const { ids } = ctx.request.body
 
-    let [err, res] = await to(examDao.deleteMany({_id: { $in: ids }}))
+    let [err, res] = await to(examDao.deleteMany({ _id: { $in: ids } }))
 
     if (err) {
-        console.log(err)
         result.code = 1001
         result.message = '数据库错误'
     }
@@ -669,9 +675,29 @@ router.post('/deletEexam', async (ctx, next) => {
     ctx.body = result
 })
 
+// 获取地市列表
+router.post('/getAreaList', async(ctx, next) => {
+    let result = {
+        code: 1000,
+        message: '',
+        data: {}
+    }
+
+    let [err, res] = await to(userDao.areaList())
+
+    if (err) {
+        result.code = 1001
+        result.message = '数据库错误'
+    } else {
+        result.data.items = res
+    }
+
+    ctx.body = result
+})
+
 // 获取处室列表
-router.post('/getDepartmentList', async (ctx, next) => {
-    let result = { 
+router.post('/getDepartmentList', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: '',
         data: {}
@@ -680,7 +706,6 @@ router.post('/getDepartmentList', async (ctx, next) => {
     let [err, res] = await to(userDao.departmentList())
 
     if (err) {
-        console.log(err)
         result.code = 1001
         result.message = '数据库错误'
     } else {
@@ -691,15 +716,15 @@ router.post('/getDepartmentList', async (ctx, next) => {
 })
 
 // 判断用户是否已经绑定处室信息
-router.post('/getUserbindStatus', async (ctx, next) => {
-    let result = { 
+router.post('/getUserbindStatus', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: '',
         data: {}
     }
 
     const { openID } = ctx.request.body
-    let [err, res] = await to(userDao.findOne({openID}))
+    let [err, res] = await to(userDao.findOne({ openID }))
 
     if (err) {
         console.log(err)
@@ -717,8 +742,8 @@ router.post('/getUserbindStatus', async (ctx, next) => {
 })
 
 // 获取指定处室下未绑定微信的考生姓名列表
-router.post('/getUserListByDepartment', async (ctx, next) => {
-    let result = { 
+router.post('/getUserListByDepartment', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: '',
         data: {}
@@ -739,15 +764,15 @@ router.post('/getUserListByDepartment', async (ctx, next) => {
 })
 
 // 考生绑定微信
-router.post('/userbindWechat', async (ctx, next) => {
-    let result = { 
+router.post('/userbindWechat', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: ''
     }
 
     let { department, name, openID } = ctx.request.body
 
-    if ( department === undefined || name === undefined || openID === undefined) {
+    if (department === undefined || name === undefined || openID === undefined) {
         result.code = 1002
         result.message = '参数异常'
     } else {
@@ -759,13 +784,13 @@ router.post('/userbindWechat', async (ctx, next) => {
         } else {
             if (res === null) {
                 result.code = 1002
-                result.message = '所选处室下不存在考生' + name
+                result.message = '数据库不存在此考生'
             } else {
                 if (res.openID !== '') {
                     result.code = 1002
-                    result.message = '考生' + name +'已绑定其他微信号'
+                    result.message = '考生' + name + '已绑定其他微信号'
                 } else {
-                    const [err1, res1] = await to(userDao.updateOne({ department, name } ,{ openID }))
+                    const [err1, res1] = await to(userDao.updateOne({ department, name }, { openID }))
 
                     if (err1) {
                         result.code = 1001
@@ -780,8 +805,8 @@ router.post('/userbindWechat', async (ctx, next) => {
 })
 
 // 获取当前开启的考试和考试对应的考试记录
-router.post('/getExamListAndHistory', async (ctx, next) => {
-    let result = { 
+router.post('/getExamListAndHistory', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: '',
         data: {
@@ -799,12 +824,12 @@ router.post('/getExamListAndHistory', async (ctx, next) => {
     } else {
         const tempArr = []
         for (let i = 0; i < res.length; i++) {
-            
+
             const examArr = await examDao.getList({
                 openID: openID,
                 bankID: res[i]._id
             }, 'status score startTime duration', 1, 1000, -1)
-            tempArr.push({ ...res[i]._doc, examArr, currentTime: new Date().getTime()})
+            tempArr.push({...res[i]._doc, examArr, currentTime: new Date().getTime() })
         }
 
         result.data.items = tempArr
@@ -814,8 +839,8 @@ router.post('/getExamListAndHistory', async (ctx, next) => {
 })
 
 // 获取考试试卷详情
-router.post('/getExamInfo', async (ctx, next) => {
-    let result = { 
+router.post('/getExamInfo', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: '',
         data: {}
@@ -836,11 +861,11 @@ router.post('/getExamInfo', async (ctx, next) => {
                 result.message = '数据库错误'
             } else {
                 const { _id, duration, startTime } = examObj
-                const { singleArr, multipleArr, judgeArr} = examObj.questions
-                const singleInfoArr = await questionDao.findAll({_id: { $in: singleArr }}, 'title options')
-                const multipleInfoArr = await questionDao.findAll({_id: { $in: multipleArr }}, 'title options')
-                const judgeInfoArr = await questionDao.findAll({_id: { $in: judgeArr }}, 'title options')
-        
+                const { singleArr, multipleArr, judgeArr } = examObj.questions
+                const singleInfoArr = await questionDao.findAll({ _id: { $in: singleArr } }, 'title options')
+                const multipleInfoArr = await questionDao.findAll({ _id: { $in: multipleArr } }, 'title options')
+                const judgeInfoArr = await questionDao.findAll({ _id: { $in: judgeArr } }, 'title options')
+
                 result.data.singleInfoArr = singleInfoArr
                 result.data.multipleInfoArr = multipleInfoArr
                 result.data.judgeInfoArr = judgeInfoArr
@@ -861,8 +886,8 @@ router.post('/getExamInfo', async (ctx, next) => {
 })
 
 // 查看已完成考试详情
-router.post('/getExamDetail', async (ctx, next) => {
-    let result = { 
+router.post('/getExamDetail', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: '',
         data: {}
@@ -883,11 +908,11 @@ router.post('/getExamDetail', async (ctx, next) => {
                 result.message = '数据库错误'
             } else {
                 const { score } = examObj
-                const { singleArr, multipleArr, judgeArr} = examObj.questions
-                const singleInfoArr = await questionDao.findAll({_id: { $in: singleArr }}, 'title options')
-                const multipleInfoArr = await questionDao.findAll({_id: { $in: multipleArr }}, 'title options')
-                const judgeInfoArr = await questionDao.findAll({_id: { $in: judgeArr }}, 'title options')
-        
+                const { singleArr, multipleArr, judgeArr } = examObj.questions
+                const singleInfoArr = await questionDao.findAll({ _id: { $in: singleArr } }, 'title options')
+                const multipleInfoArr = await questionDao.findAll({ _id: { $in: multipleArr } }, 'title options')
+                const judgeInfoArr = await questionDao.findAll({ _id: { $in: judgeArr } }, 'title options')
+
                 result.data.singleInfoArr = singleInfoArr
                 result.data.multipleInfoArr = multipleInfoArr
                 result.data.judgeInfoArr = judgeInfoArr
@@ -906,27 +931,27 @@ router.post('/getExamDetail', async (ctx, next) => {
 })
 
 // 交卷
-router.post('/submitExam', async (ctx, next) => {
-    let result = { 
+router.post('/submitExam', async(ctx, next) => {
+    let result = {
         code: 1000,
         message: '',
         data: {}
     }
 
-    const { userSingleAnsArr, userMultipleAnsArr, userJudgeAnsArr, _id} = ctx.request.body
+    const { userSingleAnsArr, userMultipleAnsArr, userJudgeAnsArr, _id } = ctx.request.body
     const [err, res] = await to(examDao.findOne({ _id }))
     let examObj = null
     if (err) {
         result.code = 1001
         result.message = '数据库错误'
     } else {
-        console.log(res)
         examObj = res
     }
-    const { startTime, duration} = examObj
-    const { singleAnsArr, multipleAnsArr, judgeAnsArr} = examObj.questions
+    const { startTime, duration } = examObj
+    const { singleAnsArr, multipleAnsArr, judgeAnsArr } = examObj.questions
     const handTime = new Date().getTime()
-    if (handTime - startTime > duration * 61 * 1000 ) {
+
+    if (handTime - startTime > (duration + 1) * 60 * 1000) {
         result.code = 5008
         result.message = '提交时间超出最后截止时间'
     } else {

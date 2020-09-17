@@ -6,18 +6,32 @@ class UserDao extends BaseDao {
         super(User)
     }
 
-     // 去重获取处室列表
-     departmentList() {
-        return new Promise((resolve, reject) => {
-            this.Model.find({}, 'department')
-                      .distinct('department')
-                      .exec(function (err, result) {
+    // 去重获取地市列表
+    areaList() {
+            return new Promise((resolve, reject) => {
+                this.Model.find({}, 'area')
+                    .distinct('area')
+                    .exec(function(err, result) {
                         if (err) {
                             reject(err)
                         } else {
                             resolve(result)
                         }
                     })
+            })
+        }
+        // 去重获取处室列表
+    departmentList() {
+        return new Promise((resolve, reject) => {
+            this.Model.find({}, 'department')
+                .distinct('department')
+                .exec(function(err, result) {
+                    if (err) {
+                        reject(err)
+                    } else {
+                        resolve(result)
+                    }
+                })
         })
     }
 
@@ -25,13 +39,13 @@ class UserDao extends BaseDao {
     userListByDepartment(department) {
         return new Promise((resolve, reject) => {
             this.Model.find({ department: department, openID: '' }, 'name')
-                      .exec(function (err, result) {
-                        if (err) {
-                            reject(err)
-                        } else {
-                            resolve(result)
-                        }
-                    })
+                .exec(function(err, result) {
+                    if (err) {
+                        reject(err)
+                    } else {
+                        resolve(result)
+                    }
+                })
         })
     }
 }
