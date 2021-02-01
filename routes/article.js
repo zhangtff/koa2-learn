@@ -37,8 +37,8 @@ router.post('/add', async (ctx, next) => {
                     result.message = '获取文章缩略图失败'
                 } else {
                     const htmlStr = res
-                    const matchArr = htmlStr.match(/msg_cdn_url = "(.*?)"/)
-            
+                    const matchArr = htmlStr.match(/property="og:image" content="(.*?)"/)
+
                     if (matchArr !== null) {
                         let [err1, res1] = await to(httpGetPromise(matchArr[1],2, 2))
             
@@ -121,7 +121,7 @@ router.post('/update', async (ctx, next) => {
             result.message = '获取文章缩略图失败'
         } else {
             const htmlStr = res
-            const matchArr = htmlStr.match(/msg_cdn_url = "(.*?)"/)
+            const matchArr = htmlStr.match(/property="og:image" content="(.*?)"/)
     
             if (matchArr !== null) {
                 let [err1, res1] = await to(httpGetPromise(matchArr[1],2, 2))
